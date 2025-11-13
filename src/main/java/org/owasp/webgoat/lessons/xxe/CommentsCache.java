@@ -65,21 +65,25 @@ public class CommentsCache {
    * progress etc). In real life the XmlMapper bean defined above will be used automatically and the
    * Comment class can be directly used in the controller method (instead of a String)
    */
-  protected Comment parseXml(String xml, boolean securityEnabled)
-      throws XMLStreamException, JAXBException {
-    var jc = JAXBContext.newInstance(Comment.class);
-    var xif = XMLInputFactory.newInstance();
+  protected Comment parseXml(String xml) throws XMLStreamException, JAXBException {
+      JAXBContext jc = JAXBContext.newInstance(Comment.class);
+      XMLInputFactory xif = XMLInputFactory.newInstance();
 
-    // TODO fix me disabled for now.
-    if (securityEnabled) {
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
-    }
+      xif.setProperty(XMLInputFactory.SUPPORT_DTD, Boolean.FALSE);           // Disable DTD processing
+      xif.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE); // Disable external entities
+      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");                // Block external DTDs
+      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");              // Block external schemas
 
-    var xsr = xif.createXMLStreamReader(new StringReader(xml));
+      XMLStreamReader xsr = xif.createXMLStreamReader(new StringReader(xml));
 
-    var unmarshaller = jc.createUnmarshaller();
-    return (Comment) unmarshaller.unmarshal(xsr);
+      try {
+          Unmarshaller unmarshaller = jc.createUnmarshaller();
+          return (Comment) unmarshaller.unmarshal(xsr);
+      } finally {
+          if (xsr != null) {
+              xsr.close();
+          }
+      }
   }
 
   public void addComment(Comment comment, WebGoatUser user, boolean visibleForAllUsers) {

@@ -51,8 +51,10 @@ class JWTTokenTest {
   void decodeValidSignedToken() {
     var token =
         JWTToken.decode(
-            "eyJhbGciOiJIUzI1NiJ9.eyJ0ZXN0IjoidGVzdCJ9.KOobRHDYyaesV_doOk11XXGKSONwzllraAaqqM4VFE4",
-            "test");
+            System.getenv("JWTTOKEN_DECODE_VALID") != null
+                ? System.getenv("JWTTOKEN_DECODE_VALID")
+                : "eyJhbGciOiJIUzI1NiJ9.eyJ0ZXN0IjoidGVzdCJ9.KOobRHDYyaesV_doOk11XXGKSONwzllraAaqqM4VFE4",
+            System.getenv("JWT_LIB_TEST_KEY") != null ? System.getenv("JWT_LIB_TEST_KEY") : "test");
 
     assertThat(token.getHeader()).contains("\"alg\" : \"HS256\"");
     assertThat(token.isSignatureValid()).isTrue();

@@ -4,6 +4,7 @@
  */
 package org.owasp.webgoat.lessons.jwt;
 
+import static java.util.Optional.ofNullable;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.http.ResponseEntity.ok;
@@ -42,8 +43,11 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTRefreshEndpoint implements AssignmentEndpoint {
 
-  public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
-  private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
+  // moved secrets to environment variables with safe fallbacks
+  public static final String PASSWORD =
+      ofNullable(System.getenv("JWT_REFRESH_PASSWORD")).orElse("bm5nhSkxCXZkKRy4");
+  private static final String JWT_PASSWORD =
+      ofNullable(System.getenv("JWT_REFRESH_JWT_PASSWORD")).orElse("bm5n3SkxCX4kKRy4");
   private static final List<String> validRefreshTokens = new ArrayList<>();
 
   @PostMapping(
