@@ -23,27 +23,34 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class LogBleedingTask implements AssignmentEndpoint {
 
-  private static final Logger log = LoggerFactory.getLogger(LogBleedingTask.class);
-  private final String password;
+    private static final Logger log = LoggerFactory.getLogger(LogBleedingTask.class);
 
-  public LogBleedingTask() {
-    this.password = UUID.randomUUID().toString();
-    log.info(
-        "Password for admin: {}",
-        Base64.getEncoder().encodeToString(password.getBytes(StandardCharsets.UTF_8)));
-  }
 
-  @PostMapping("/LogSpoofing/log-bleeding")
-  @ResponseBody
-  public AttackResult completed(@RequestParam String username, @RequestParam String password) {
-    if (Strings.isEmpty(username) || Strings.isEmpty(password)) {
-      return failed(this).output("Please provide username (Admin) and password").build();
+    private final String passwordHash;
+
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    public LogBleedingTask() {
+
+        String rawPassword = UUID.randomUUID().toString();
+
+        this.passwordHash = passwordEncoder.encode(rawPassword);
+
+        log.info("Admin password generated and stored securely (hash only).");
+
     }
 
-    if (username.equals("Admin") && password.equals(this.password)) {
-      return success(this).build();
-    }
+    @PostMapping("/LogSpoofing/log-bleeding")
+    @ResponseBody
+    public AttackResult completed(@RequestParam String username, @RequestParam String password) {
+        if (Strings.isEmpty(username) || Strings.isEmpty(password)) {
+            return failed(this).output("Please provide username (Admin) and password").build();
+        }
 
-    return failed(this).build();
-  }
+        if ("Admin".equals(username) && passwordEncoder.matches(password, this.passwordHash)) {
+            return success(this).build();
+        }
+
+        return failed(this).build();
+    }
 }
