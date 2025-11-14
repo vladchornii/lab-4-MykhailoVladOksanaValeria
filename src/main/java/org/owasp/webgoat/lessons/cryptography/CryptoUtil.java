@@ -5,7 +5,7 @@
 package org.owasp.webgoat.lessons.cryptography;
 
 import java.math.BigInteger;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -26,122 +26,109 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class CryptoUtil {
 
-  private static final BigInteger[] FERMAT_PRIMES = {
-    BigInteger.valueOf(3),
-    BigInteger.valueOf(5),
-    BigInteger.valueOf(17),
-    BigInteger.valueOf(257),
-    BigInteger.valueOf(65537)
-  };
+    private static final BigInteger[] FERMAT_PRIMES = {
+            BigInteger.valueOf(3),
+            BigInteger.valueOf(5),
+            BigInteger.valueOf(17),
+            BigInteger.valueOf(257),
+            BigInteger.valueOf(65537)
+    };
 
-  public static KeyPair generateKeyPair()
-      throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
-    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-    RSAKeyGenParameterSpec kpgSpec =
-        new RSAKeyGenParameterSpec(
-            2048, FERMAT_PRIMES[new SecureRandom().nextInt(FERMAT_PRIMES.length)]);
-    keyPairGenerator.initialize(kpgSpec);
-    // keyPairGenerator.initialize(2048);
-    return keyPairGenerator.generateKeyPair();
-  }
-
-  public static String getPrivateKeyInPEM(KeyPair keyPair) {
-    String encodedString = "-----BEGIN PRIVATE KEY-----\n";
-    encodedString =
-        encodedString
-            + new String(
-                Base64.getEncoder().encode(keyPair.getPrivate().getEncoded()),
-                Charset.forName("UTF-8"))
-            + "\n";
-    encodedString = encodedString + "-----END PRIVATE KEY-----\n";
-    return encodedString;
-  }
-
-  public static String signMessage(String message, PrivateKey privateKey) {
-
-    log.debug("start signMessage");
-    String signature = null;
-
-    try {
-      // Initiate signature verification
-      Signature instance = Signature.getInstance("SHA256withRSA");
-      instance.initSign(privateKey);
-      instance.update(message.getBytes("UTF-8"));
-
-      // actual verification against signature
-      signature = new String(Base64.getEncoder().encode(instance.sign()), Charset.forName("UTF-8"));
-
-      log.info("signe the signature with result: {}", signature);
-    } catch (Exception e) {
-      log.error("Signature signing failed", e);
+    public static KeyPair generateKeyPair()
+            throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        RSAKeyGenParameterSpec kpgSpec =
+                new RSAKeyGenParameterSpec(
+                        2048, FERMAT_PRIMES[new SecureRandom().nextInt(FERMAT_PRIMES.length)]);
+        keyPairGenerator.initialize(kpgSpec);
+        return keyPairGenerator.generateKeyPair();
     }
 
-    log.debug("end signMessage");
-    return signature;
-  }
-
-  public static boolean verifyMessage(
-      String message, String base64EncSignature, PublicKey publicKey) {
-
-    log.debug("start verifyMessage");
-    boolean result = false;
-
-    try {
-
-      base64EncSignature = base64EncSignature.replace("\r", "").replace("\n", "").replace(" ", "");
-      // get raw signature from base64 encrypted string in header
-      byte[] decodedSignature = Base64.getDecoder().decode(base64EncSignature);
-
-      // Initiate signature verification
-      Signature instance = Signature.getInstance("SHA256withRSA");
-      instance.initVerify(publicKey);
-      instance.update(message.getBytes("UTF-8"));
-
-      // actual verification against signature
-      result = instance.verify(decodedSignature);
-
-      log.info("Verified the signature with result: {}", result);
-    } catch (Exception e) {
-      log.error("Signature verification failed", e);
+    /**
+     * Повертає приватний ключ у вигляді Base64-рядка (без PEM-хедерів).
+     */
+    public static String getPrivateKeyInPEM(KeyPair keyPair) {
+        return Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
     }
 
-    log.debug("end verifyMessage");
-    return result;
-  }
+    public static String signMessage(String message, PrivateKey privateKey) {
 
-  public static boolean verifyAssignment(String modulus, String signature, PublicKey publicKey) {
+        log.debug("start signMessage");
+        String signature = null;
 
-    /* first check if the signature is correct, i.e. right private key and right hash */
-    boolean result = false;
+        try {
+            Signature instance = Signature.getInstance("SHA256withRSA");
+            instance.initSign(privateKey);
+            instance.update(message.getBytes(StandardCharsets.UTF_8));
 
-    if (modulus != null && signature != null) {
-      result = verifyMessage(modulus, signature, publicKey);
+            signature = Base64.getEncoder()
+                    .encodeToString(instance.sign());
 
-      /*
-       * next check if the submitted modulus is the correct modulus of the public key
-       */
-      RSAPublicKey rsaPubKey = (RSAPublicKey) publicKey;
-      if (modulus.length() == 512) {
-        modulus = "00".concat(modulus);
-      }
-      result =
-          result
-              && (DatatypeConverter.printHexBinary(rsaPubKey.getModulus().toByteArray())
-                  .equals(modulus.toUpperCase()));
+            log.info("signed the signature with result: {}", signature);
+        } catch (Exception e) {
+            log.error("Signature signing failed", e);
+        }
+
+        log.debug("end signMessage");
+        return signature;
     }
-    return result;
-  }
 
-  public static PrivateKey getPrivateKeyFromPEM(String privateKeyPem)
-      throws NoSuchAlgorithmException, InvalidKeySpecException {
-    privateKeyPem = privateKeyPem.replace("-----BEGIN PRIVATE KEY-----", "");
-    privateKeyPem = privateKeyPem.replace("-----END PRIVATE KEY-----", "");
-    privateKeyPem = privateKeyPem.replace("\n", "").replace("\r", "");
+    public static boolean verifyMessage(
+            String message, String base64EncSignature, PublicKey publicKey) {
 
-    byte[] decoded = Base64.getDecoder().decode(privateKeyPem);
+        log.debug("start verifyMessage");
+        boolean result = false;
 
-    PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
-    KeyFactory kf = KeyFactory.getInstance("RSA");
-    return kf.generatePrivate(spec);
-  }
+        try {
+            base64EncSignature =
+                    base64EncSignature.replace("\r", "").replace("\n", "").replace(" ", "");
+
+            byte[] decodedSignature = Base64.getDecoder().decode(base64EncSignature);
+
+            Signature instance = Signature.getInstance("SHA256withRSA");
+            instance.initVerify(publicKey);
+            instance.update(message.getBytes(StandardCharsets.UTF_8));
+
+            result = instance.verify(decodedSignature);
+
+            log.info("Verified the signature with result: {}", result);
+        } catch (Exception e) {
+            log.error("Signature verification failed", e);
+        }
+
+        log.debug("end verifyMessage");
+        return result;
+    }
+
+    public static boolean verifyAssignment(String modulus, String signature, PublicKey publicKey) {
+
+        boolean result = false;
+
+        if (modulus != null && signature != null) {
+            result = verifyMessage(modulus, signature, publicKey);
+
+            RSAPublicKey rsaPubKey = (RSAPublicKey) publicKey;
+            if (modulus.length() == 512) {
+                modulus = "00".concat(modulus);
+            }
+            result =
+                    result
+                            && DatatypeConverter.printHexBinary(rsaPubKey.getModulus().toByteArray())
+                            .equals(modulus.toUpperCase());
+        }
+        return result;
+    }
+
+    /**
+     * Відновлює приватний ключ із Base64-представлення (без PEM-хедерів).
+     */
+    public static PrivateKey getPrivateKeyFromPEM(String privateKeyBase64)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
+
+        byte[] decoded = Base64.getDecoder().decode(privateKeyBase64);
+
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePrivate(spec);
+    }
 }
