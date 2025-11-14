@@ -36,73 +36,77 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @AssignmentHints({
-  "path-traversal-zip-slip.hint1",
-  "path-traversal-zip-slip.hint2",
-  "path-traversal-zip-slip.hint3",
-  "path-traversal-zip-slip.hint4"
+        "path-traversal-zip-slip.hint1",
+        "path-traversal-zip-slip.hint2",
+        "path-traversal-zip-slip.hint3",
+        "path-traversal-zip-slip.hint4"
 })
 @Slf4j
 public class ProfileZipSlip extends ProfileUploadBase {
 
-  public ProfileZipSlip(@Value("${webgoat.server.directory}") String webGoatHomeDirectory) {
-    super(webGoatHomeDirectory);
-  }
-
-  @PostMapping(
-      value = "/PathTraversal/zip-slip",
-      consumes = ALL_VALUE,
-      produces = APPLICATION_JSON_VALUE)
-  @ResponseBody
-  public AttackResult uploadFileHandler(
-      @RequestParam("uploadedFileZipSlip") MultipartFile file, @CurrentUsername String username) {
-    if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
-      return failed(this).feedback("path-traversal-zip-slip.no-zip").build();
-    } else {
-      return processZipUpload(file, username);
+    public ProfileZipSlip(@Value("${webgoat.server.directory}") String webGoatHomeDirectory) {
+        super(webGoatHomeDirectory);
     }
-  }
 
-  @SneakyThrows
-  private AttackResult processZipUpload(MultipartFile file, String username) {
-    var tmpZipDirectory = Files.createTempDirectory(username);
-    cleanupAndCreateDirectoryForUser(username);
-    var currentImage = getProfilePictureAsBase64(username);
-
-    try {
-      var uploadedZipFile = tmpZipDirectory.resolve(file.getOriginalFilename());
-      FileCopyUtils.copy(file.getBytes(), uploadedZipFile.toFile());
-
-      ZipFile zip = new ZipFile(uploadedZipFile.toFile());
-      Enumeration<? extends ZipEntry> entries = zip.entries();
-      while (entries.hasMoreElements()) {
-        ZipEntry e = entries.nextElement();
-        File f = new File(tmpZipDirectory.toFile(), e.getName());
-        InputStream is = zip.getInputStream(e);
-        Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
-      }
-
-      return isSolved(currentImage, getProfilePictureAsBase64(username));
-    } catch (IOException e) {
-      return failed(this).output(e.getMessage()).build();
+    @PostMapping(
+            value = "/PathTraversal/zip-slip",
+            consumes = ALL_VALUE,
+            produces = APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public AttackResult uploadFileHandler(
+            @RequestParam("uploadedFileZipSlip") MultipartFile file, @CurrentUsername String username) {
+        if (!file.getOriginalFilename().toLowerCase().endsWith(".zip")) {
+            return failed(this).feedback("path-traversal-zip-slip.no-zip").build();
+        } else {
+            return processZipUpload(file, username);
+        }
     }
-  }
 
-  private AttackResult isSolved(byte[] currentImage, byte[] newImage) {
-    if (Arrays.equals(currentImage, newImage)) {
-      return failed(this).output("path-traversal-zip-slip.extracted").build();
+    @SneakyThrows
+    private AttackResult processZipUpload(MultipartFile file, String username) {
+        var tmpZipDirectory = Files.createTempDirectory(username);
+        cleanupAndCreateDirectoryForUser(username);
+        var currentImage = getProfilePictureAsBase64(username);
+
+        try {
+            var uploadedZipFile = tmpZipDirectory.resolve(file.getOriginalFilename());
+            FileCopyUtils.copy(file.getBytes(), uploadedZipFile.toFile());
+
+            //  Закриваємо ZipFile та InputStream через try-with-resources
+            try (ZipFile zip = new ZipFile(uploadedZipFile.toFile())) {
+                Enumeration<? extends ZipEntry> entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry e = entries.nextElement();
+                    File f = new File(tmpZipDirectory.toFile(), e.getName());
+                    try (InputStream is = zip.getInputStream(e)) {
+                        Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    }
+                }
+            }
+
+            return isSolved(currentImage, getProfilePictureAsBase64(username));
+        } catch (IOException e) {
+            log.error("Error while processing zip upload", e);
+            return failed(this).output(e.getMessage()).build();
+        }
     }
-    return success(this).output("path-traversal-zip-slip.extracted").build();
-  }
 
-  @GetMapping("/PathTraversal/zip-slip/")
-  @ResponseBody
-  public ResponseEntity<?> getProfilePicture(@CurrentUsername String username) {
-    return super.getProfilePicture(username);
-  }
+    private AttackResult isSolved(byte[] currentImage, byte[] newImage) {
+        if (Arrays.equals(currentImage, newImage)) {
+            return failed(this).output("path-traversal-zip-slip.extracted").build();
+        }
+        return success(this).output("path-traversal-zip-slip.extracted").build();
+    }
 
-  @GetMapping("/PathTraversal/zip-slip/profile-image/{username}")
-  @ResponseBody
-  public ResponseEntity<?> getProfileImage(@PathVariable String username) {
-    return ResponseEntity.notFound().build();
-  }
+    @GetMapping("/PathTraversal/zip-slip/")
+    @ResponseBody
+    public ResponseEntity<?> getProfilePicture(@CurrentUsername String username) {
+        return super.getProfilePicture(username);
+    }
+
+    @GetMapping("/PathTraversal/zip-slip/profile-image/{username}")
+    @ResponseBody
+    public ResponseEntity<?> getProfileImage(@PathVariable String username) {
+        return ResponseEntity.notFound().build();
+    }
 }
