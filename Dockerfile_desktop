@@ -1,7 +1,10 @@
 # Builder stage to download OWASP ZAP once per version
 USER webgoat
-FROM alpine:3.20 AS zap
+# ПРИВ’ЯЗАНО ДО КОНКРЕТНОГО DIGEST А НЕ ПЛАВАЮЧОГО ТЕГУ
+FROM alpine:3.22@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412 AS zap
+
 ARG ZAP_VERSION=2.16.1
+
 RUN apk add --no-cache curl tar \
   && set -eux; \
      curl -sSL "https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Linux.tar.gz" -o /tmp/zap.tgz; \
@@ -10,10 +13,11 @@ RUN apk add --no-cache curl tar \
      rm -f /tmp/zap.tgz
 
 # Builder stage to fetch a JRE suited for the target architecture
-FROM alpine:3.20 AS jre
+FROM alpine:3.22@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412 AS jre
 ARG JAVA_MAJOR=23
 ARG JAVA_FULL=23.0.1+11
 ARG TARGETARCH
+
 RUN apk add --no-cache curl tar \
   && set -eux; \
      case "${TARGETARCH}" in \
@@ -29,13 +33,16 @@ RUN apk add --no-cache curl tar \
      rm -f /tmp/java.tgz
 
 # Final runtime image
-FROM lscr.io/linuxserver/webtop:ubuntu-xfce
+# ВИКОРИСТОВУЄМО КОНКРЕТНИЙ ТЕГ, А НЕ ЗАГАЛЬНИЙ ubuntu-xfce
+FROM lscr.io/linuxserver/webtop:ubuntu-xfce-824a4465-ls171
+
 LABEL name="WebGoat: A deliberately insecure Web Application"
 LABEL maintainer="WebGoat team"
 
 ARG ZAP_VERSION=2.16.1
 ARG JAVA_MAJOR=23
 ARG JAVA_FULL=23.0.1+11
+
 ENV ZAP_VERSION=${ZAP_VERSION} \
     JAVA_HOME=/config/java-jdk \
     PATH="${PATH}:/config/java-jdk/bin" \
@@ -44,6 +51,7 @@ ENV ZAP_VERSION=${ZAP_VERSION} \
 WORKDIR /config
 
 # Install editors and gzip support
+# (за бажанням можна теж зафіксувати версії пакетів, але основна проблема - у базових образах)
 RUN apt-get update \
   && apt-get --yes install --no-install-recommends vim nano gzip \
   && rm -rf /var/lib/apt/lists/*
